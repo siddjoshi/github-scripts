@@ -126,10 +126,30 @@ def get_enterprise_organizations(enterprise_slug: str, headers: Dict[str, str]) 
             if response.status_code == 404:
                 print(f"❌ Error: Enterprise '{enterprise_slug}' not found or not accessible")
                 print("   Make sure the enterprise slug is correct and your token has 'admin:enterprise' scope")
+                print(f"   API URL used: {url}")
+                print(f"   Status code: {response.status_code}")
+                if DEBUG:
+                    print(f"   Response: {response.text}")
+                
+                # Try alternative: check if it's an organization instead
+                print(f"\n💡 Attempting to treat '{enterprise_slug}' as a single organization...")
+                org_url = f"{API_URL}/orgs/{enterprise_slug}"
+                debug_print(f"Trying organization endpoint: {org_url}")
+                
+                org_response = requests.get(org_url, headers=headers, timeout=30)
+                if org_response.status_code == 200:
+                    print(f"   ✅ Found as organization (not enterprise)")
+                    org_data = org_response.json()
+                    return [org_data]
+                else:
+                    print(f"   ❌ Also not found as organization")
+                    debug_print(f"   Org check status: {org_response.status_code}")
+                
                 return []
             elif response.status_code == 403:
                 print(f"❌ Error: Access forbidden. Your token may not have the required permissions")
                 print("   Required scope: 'admin:enterprise' or 'read:enterprise'")
+                print(f"   Response: {response.text}")
                 return []
             elif response.status_code != 200:
                 print(f"❌ Error fetching organizations: {response.status_code}")
