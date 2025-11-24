@@ -158,6 +158,9 @@ def get_enterprise_organizations(enterprise_slug: str, headers: Dict[str, str]) 
                 
             data = response.json()
             
+            debug_print(f"Response type: {type(data)}")
+            debug_print(f"Response keys: {data.keys() if isinstance(data, dict) else 'N/A'}")
+            
             # Handle both paginated responses and direct arrays
             if isinstance(data, dict) and 'organizations' in data:
                 orgs = data['organizations']
@@ -168,11 +171,21 @@ def get_enterprise_organizations(enterprise_slug: str, headers: Dict[str, str]) 
                 debug_print(f"Response data: {data}")
                 return []
             
+            debug_print(f"Found {len(orgs)} organizations on this page")
+            
             if not orgs:
+                debug_print("No organizations in this page, stopping pagination")
                 break
                 
             organizations.extend(orgs)
             print(f"   📄 Fetched page {page}, total organizations so far: {len(organizations)}")
+            
+            # Check if there are more pages
+            # GitHub API indicates no more pages when we get fewer results than per_page
+            if len(orgs) < params['per_page']:
+                debug_print(f"Received {len(orgs)} orgs (less than {params['per_page']}), no more pages")
+                break
+            
             page += 1
             time.sleep(API_DELAY)
             
