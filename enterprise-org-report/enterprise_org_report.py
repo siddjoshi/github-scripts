@@ -29,8 +29,19 @@ try:
 except ImportError:
     print("💡 Tip: Install python-dotenv to use .env files: pip install python-dotenv")
 
+# Detect if running in GitHub Actions
+IS_GITHUB_ACTIONS = os.getenv('GITHUB_ACTIONS') == 'true'
+
+if IS_GITHUB_ACTIONS:
+    print("🤖 Running in GitHub Actions environment")
+
 # Configuration
-GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
+# In GitHub Actions, use ENTERPRISE_GITHUB_TOKEN to avoid conflict with pre-defined GITHUB_TOKEN
+if IS_GITHUB_ACTIONS:
+    GITHUB_TOKEN = os.getenv('ENTERPRISE_GITHUB_TOKEN')
+else:
+    GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
+
 API_URL = os.getenv('GITHUB_API_URL', 'https://api.github.com')
 OUTPUT_DIR = os.getenv('OUTPUT_DIR', '.')
 DEBUG = os.getenv('DEBUG', 'false').lower() == 'true'

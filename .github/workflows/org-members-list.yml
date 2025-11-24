@@ -45,7 +45,7 @@ jobs:
       
       - name: Generate members report
         env:
-          GITHUB_TOKEN: ${{ secrets.ENTERPRISE_GITHUB_TOKEN }}
+          ENTERPRISE_GITHUB_TOKEN: ${{ secrets.ENTERPRISE_GITHUB_TOKEN }}
           GITHUB_API_URL: ${{ vars.GITHUB_API_URL || 'https://api.github.com' }}
           DEBUG: ${{ inputs.debug_mode }}
         run: |
