@@ -62,7 +62,105 @@ Your GitHub Personal Access Token must have the following scope:
 
 ## Usage
 
-### Basic Usage
+### Option 1: GitHub Actions (Recommended - No Local Setup Required)
+
+**This is the easiest way to generate reports automatically without installing anything locally.**
+
+#### Quick Start Guide
+
+**Step 1: Add Your Token to Repository Secrets**
+1. Go to your repository on GitHub
+2. Click **Settings** → **Secrets and variables** → **Actions**
+3. Click **"New repository secret"**
+4. Enter:
+   - **Name:** `ENTERPRISE_GITHUB_TOKEN` *(must be exactly this)*
+   - **Secret:** Your GitHub Personal Access Token (from above)
+5. Click **"Add secret"**
+
+**Step 2: Run the Workflow**
+1. Go to the **Actions** tab in your GitHub repository
+2. Click **"Generate Enterprise Organization Report"** in the left sidebar
+3. Click the **"Run workflow"** dropdown button (top right, green button)
+4. Fill in:
+   - **Enterprise slug:** Your enterprise name (e.g., `sidlabs`, `acme-corp`)
+   - **Enable debug mode:** ☐ (check for detailed logs if needed)
+5. Click **"Run workflow"**
+
+**Step 3: View Your Report**
+- The workflow will run for a few minutes
+- When complete, go to the `results/` folder in your repository
+- Your CSV report will be there: `enterprise_org_report_<enterprise>_<timestamp>.csv`
+- Also available as a downloadable artifact in the workflow run
+
+#### What the Workflow Does
+
+✅ Automatically fetches all organizations from your enterprise (uses GraphQL API for GitHub.com)  
+✅ Counts all members and repositories for each organization  
+✅ Generates a timestamped CSV report  
+✅ Commits the report to your `results/` folder  
+✅ Uploads the report as a workflow artifact (90-day retention)  
+
+#### Optional: For GitHub Enterprise Server Users
+
+If you're using self-hosted GitHub Enterprise Server (not GitHub.com):
+
+1. Go to **Settings** → **Secrets and variables** → **Actions** → **Variables** tab
+2. Click **"New repository variable"**
+3. Enter:
+   - **Name:** `GITHUB_API_URL`
+   - **Value:** Your server's API URL (e.g., `https://github.your-company.com/api/v3`)
+4. Click **"Add variable"**
+
+#### Troubleshooting the Workflow
+
+| Problem | Solution |
+|---------|----------|
+| "ENTERPRISE_GITHUB_TOKEN not found" | Make sure the secret name is exactly `ENTERPRISE_GITHUB_TOKEN` |
+| "Enterprise not found" | Verify enterprise slug is correct and token has `admin:enterprise` scope |
+| "No organizations found" | Enable debug mode and check token permissions |
+| Shows 0 members/repos | Ensure token has `read:org` scope |
+
+---
+
+### Option 2: Run Locally (Command Line)
+
+**Use this if you want to run the script on your local machine.**
+
+#### Prerequisites
+- Python 3.7 or higher installed
+- GitHub Personal Access Token (from setup above)
+
+#### Installation
+
+1. Clone and navigate to the directory:
+```bash
+cd enterprise-org-report
+```
+
+2. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+3. Configure your token (choose one):
+
+**Option A: .env file (Recommended)**
+```bash
+# Create .env file
+cat > .env << EOF
+GITHUB_TOKEN=your_token_here
+GITHUB_API_URL=https://api.github.com
+OUTPUT_DIR=./reports
+DEBUG=false
+EOF
+```
+
+**Option B: Environment variable**
+```bash
+export GITHUB_TOKEN=your_token_here
+```
+
+#### Basic Usage
 
 ```bash
 python enterprise_org_report.py YOUR_ENTERPRISE_SLUG
@@ -73,19 +171,19 @@ This will:
 - Count members and repositories for each organization
 - Generate a CSV file with timestamp: `enterprise_org_report_YOUR_ENTERPRISE_SLUG_20231117_143022.csv`
 
-### Specify Output File
+#### Specify Output File
 
 ```bash
 python enterprise_org_report.py my-enterprise --output my_report.csv
 ```
 
-### Enable Debug Mode
+#### Enable Debug Mode
 
 ```bash
 python enterprise_org_report.py my-enterprise --debug
 ```
 
-### Complete Example
+#### Complete Example
 
 ```bash
 python enterprise_org_report.py acme-corp \
@@ -245,60 +343,6 @@ python enterprise_org_report.py my-enterprise --debug
 2. **Use minimal scopes**: Only grant necessary permissions
 3. **Rotate tokens**: Regularly update your access tokens
 4. **Store securely**: Use environment variables or secure secret management
-
-## GitHub Actions Integration
-
-This repository includes a GitHub Actions workflow that can generate enterprise organization reports automatically and commit them to the repository.
-
-### Setup
-
-1. **Add GitHub Token as Secret**
-   - Go to your repository Settings → Secrets and variables → Actions
-   - Click "New repository secret"
-   - Name: `ENTERPRISE_GITHUB_TOKEN`
-   - Value: Your GitHub Personal Access Token with `admin:enterprise` or `read:enterprise` scope
-   - Click "Add secret"
-
-2. **(Optional) Configure API URL**
-   - If using GitHub Enterprise Server, go to Settings → Secrets and variables → Actions → Variables tab
-   - Click "New repository variable"
-   - Name: `GITHUB_API_URL`
-   - Value: Your GitHub Enterprise Server API URL (e.g., `https://github.your-company.com/api/v3`)
-   - Click "Add variable"
-
-### Running the Workflow
-
-1. Go to the "Actions" tab in your repository
-2. Select "Generate Enterprise Organization Report" from the workflows list
-3. Click "Run workflow"
-4. Fill in the inputs:
-   - **Enterprise slug**: The name of your GitHub Enterprise (required)
-   - **Enable debug mode**: Check this box for verbose output (optional)
-5. Click "Run workflow"
-
-### Workflow Output
-
-The workflow will:
-- Generate a CSV report with timestamp (e.g., `enterprise_org_report_acme-corp_20251124_143022.csv`)
-- Save the report to the `results/` folder in the repository
-- Commit and push the report automatically
-- Upload the report as a workflow artifact (retained for 90 days)
-
-### Workflow File Location
-
-The workflow is defined in: `.github/workflows/enterprise-org-report.yml`
-
-### Viewing Results
-
-After the workflow completes:
-- **In Repository**: Check the `results/` folder for committed CSV files
-- **As Artifact**: Download from the workflow run page under "Artifacts"
-
-### Troubleshooting Workflow
-
-- **Authentication errors**: Verify `ENTERPRISE_GITHUB_TOKEN` secret is set correctly with required scopes
-- **Enterprise not found**: Double-check the enterprise slug entered in the workflow input
-- **Permission denied on commit**: Ensure the workflow has write permissions (already configured in the workflow file)
 
 ## Contributing
 

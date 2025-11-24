@@ -65,7 +65,138 @@ Your GitHub Personal Access Token must have the following scopes:
 
 ## Usage
 
-### Basic Usage (Markdown format)
+### Option 1: GitHub Actions (Recommended - No Local Setup Required)
+
+**This is the easiest way to generate member reports automatically without installing anything locally.**
+
+#### Quick Start Guide
+
+**Step 1: Add Your Token to Repository Secrets**
+1. Go to your repository on GitHub
+2. Click **Settings** → **Secrets and variables** → **Actions**
+3. Click **"New repository secret"**
+4. Enter:
+   - **Name:** `ENTERPRISE_GITHUB_TOKEN` *(must be exactly this)*
+   - **Secret:** Your GitHub Personal Access Token (from above)
+5. Click **"Add secret"**
+
+**Step 2: Run the Workflow**
+1. Go to the **Actions** tab in your GitHub repository
+2. Click **"Generate Organization Members List"** in the left sidebar
+3. Click the **"Run workflow"** dropdown button (top right, green button)
+4. Fill in:
+   - **Enterprise slug:** Your enterprise name (e.g., `sidlabs`, `acme-corp`)
+   - **Output format:** Choose from dropdown:
+     - `markdown` - Tables and links (default) 📝
+     - `html` - Beautiful web page 🎨
+     - `json` - Machine-readable data 💾
+     - `text` - Plain text 📄
+   - **Enable debug mode:** ☐ (check for detailed logs if needed)
+5. Click **"Run workflow"**
+
+**Step 3: View Your Report**
+- The workflow will run for a few minutes
+- When complete, go to the `results/` folder in your repository
+- Your report will be there: `enterprise_members_<enterprise>_<timestamp>.<format>`
+- HTML reports can be downloaded and opened in your browser
+- Also available as a downloadable artifact in the workflow run
+
+#### What the Workflow Does
+
+✅ Automatically fetches all organizations from your enterprise (uses GraphQL API for GitHub.com)  
+✅ Retrieves complete member lists with usernames and profile links  
+✅ Generates a beautifully formatted report in your chosen format  
+✅ Commits the report to your `results/` folder  
+✅ Uploads the report as a workflow artifact (90-day retention)  
+
+#### Report Format Guide
+
+**🎨 HTML** - Best for presentations and easy viewing
+- Beautiful styled web page
+- Interactive table of contents
+- Hover effects and color coding
+- Open in any browser
+
+**📝 Markdown** - Best for GitHub and documentation
+- Easy to read on GitHub
+- Clickable table of contents
+- Member tables with links
+- Great for version control
+
+**💾 JSON** - Best for automation
+- Machine-readable format
+- Complete data structure
+- Easy to parse and integrate
+- Includes all metadata
+
+**📄 Text** - Best for simple viewing
+- Plain text format
+- No special formatting
+- Works in any editor
+- Easy to grep/search
+
+#### Optional: For GitHub Enterprise Server Users
+
+If you're using self-hosted GitHub Enterprise Server (not GitHub.com):
+
+1. Go to **Settings** → **Secrets and variables** → **Actions** → **Variables** tab
+2. Click **"New repository variable"**
+3. Enter:
+   - **Name:** `GITHUB_API_URL`
+   - **Value:** Your server's API URL (e.g., `https://github.your-company.com/api/v3`)
+4. Click **"Add variable"**
+
+#### Troubleshooting the Workflow
+
+| Problem | Solution |
+|---------|----------|
+| "ENTERPRISE_GITHUB_TOKEN not found" | Make sure the secret name is exactly `ENTERPRISE_GITHUB_TOKEN` |
+| "Enterprise not found" | Verify enterprise slug is correct and token has `admin:enterprise` scope |
+| "No organizations found" | Enable debug mode and check token permissions |
+| Empty member lists | Ensure token has `read:org` scope and member visibility permissions |
+
+---
+
+### Option 2: Run Locally (Command Line)
+
+**Use this if you want to run the script on your local machine.**
+
+#### Prerequisites
+- Python 3.7 or higher installed
+- GitHub Personal Access Token (from setup above)
+
+#### Installation
+
+1. Clone and navigate to the directory:
+```bash
+cd org-members-list
+```
+
+2. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+3. Configure your token (choose one):
+
+**Option A: .env file (Recommended)**
+```bash
+# Create .env file
+cat > .env << EOF
+GITHUB_TOKEN=your_token_here
+GITHUB_API_URL=https://api.github.com
+OUTPUT_DIR=./reports
+OUTPUT_FORMAT=markdown
+DEBUG=false
+EOF
+```
+
+**Option B: Environment variable**
+```bash
+export GITHUB_TOKEN=your_token_here
+```
+
+#### Basic Usage (Markdown format)
 
 ```bash
 python org_members_list.py YOUR_ENTERPRISE_SLUG
@@ -73,7 +204,7 @@ python org_members_list.py YOUR_ENTERPRISE_SLUG
 
 This generates a Markdown file like: `enterprise_members_YOUR_ENTERPRISE_SLUG_20231117_143022.md`
 
-### HTML Report (Recommended for easy reading)
+#### HTML Report (Recommended for easy reading)
 
 ```bash
 python org_members_list.py my-enterprise --format html
@@ -81,7 +212,7 @@ python org_members_list.py my-enterprise --format html
 
 Generates a beautiful, interactive HTML page with styled tables and navigation.
 
-### JSON Report (Machine-readable)
+#### JSON Report (Machine-readable)
 
 ```bash
 python org_members_list.py my-enterprise --format json
@@ -89,7 +220,7 @@ python org_members_list.py my-enterprise --format json
 
 Perfect for programmatic processing or integration with other tools.
 
-### Plain Text Report
+#### Plain Text Report
 
 ```bash
 python org_members_list.py my-enterprise --format text
@@ -97,19 +228,19 @@ python org_members_list.py my-enterprise --format text
 
 Simple, plain text format for easy viewing in any text editor.
 
-### Specify Output File
+#### Specify Output File
 
 ```bash
 python org_members_list.py my-enterprise --format html --output my_report.html
 ```
 
-### Enable Debug Mode
+#### Enable Debug Mode
 
 ```bash
 python org_members_list.py my-enterprise --debug
 ```
 
-### Complete Example
+#### Complete Example
 
 ```bash
 python org_members_list.py acme-corp \
@@ -442,63 +573,6 @@ python org_members_list.py my-enterprise --format json --output today.json
 diff <(jq '.organizations[].members[].login' yesterday.json | sort) \
      <(jq '.organizations[].members[].login' today.json | sort)
 ```
-
-## GitHub Actions Integration
-
-This repository includes a GitHub Actions workflow that can generate organization members reports automatically and commit them to the repository.
-
-### Setup
-
-1. **Add GitHub Token as Secret**
-   - Go to your repository Settings → Secrets and variables → Actions
-   - Click "New repository secret"
-   - Name: `ENTERPRISE_GITHUB_TOKEN`
-   - Value: Your GitHub Personal Access Token with `admin:enterprise` or `read:enterprise` scope
-   - Click "Add secret"
-
-2. **(Optional) Configure API URL**
-   - If using GitHub Enterprise Server, go to Settings → Secrets and variables → Actions → Variables tab
-   - Click "New repository variable"
-   - Name: `GITHUB_API_URL`
-   - Value: Your GitHub Enterprise Server API URL (e.g., `https://github.your-company.com/api/v3`)
-   - Click "Add variable"
-
-### Running the Workflow
-
-1. Go to the "Actions" tab in your repository
-2. Select "Generate Organization Members List" from the workflows list
-3. Click "Run workflow"
-4. Fill in the inputs:
-   - **Enterprise slug**: The name of your GitHub Enterprise (required)
-   - **Output format**: Choose from markdown, html, json, or text (required)
-   - **Enable debug mode**: Check this box for verbose output (optional)
-5. Click "Run workflow"
-
-### Workflow Output
-
-The workflow will:
-- Generate a report in your chosen format with timestamp (e.g., `enterprise_members_acme-corp_20251124_143022.md`)
-- Save the report to the `results/` folder in the repository
-- Commit and push the report automatically
-- Upload the report as a workflow artifact (retained for 90 days)
-
-### Workflow File Location
-
-The workflow is defined in: `.github/workflows/org-members-list.yml`
-
-### Viewing Results
-
-After the workflow completes:
-- **In Repository**: Check the `results/` folder for committed report files
-- **As Artifact**: Download from the workflow run page under "Artifacts"
-- **HTML Reports**: Can be opened directly in a browser from the results folder
-
-### Troubleshooting Workflow
-
-- **Authentication errors**: Verify `ENTERPRISE_GITHUB_TOKEN` secret is set correctly with required scopes
-- **Enterprise not found**: Double-check the enterprise slug entered in the workflow input
-- **Permission denied on commit**: Ensure the workflow has write permissions (already configured in the workflow file)
-- **Format issues**: Ensure you selected a valid output format from the dropdown
 
 ## Contributing
 
