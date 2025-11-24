@@ -94,6 +94,99 @@ def check_rate_limit(headers: Dict[str, str]) -> None:
         debug_print(f"Could not check rate limit: {e}")
 
 
+def get_enterprise_orgs_graphql(enterprise_slug: str, headers: Dict[str, str]) -> List[Dict]:
+    """
+    Fetch organizations from a GitHub Enterprise using GraphQL API
+    This works for GitHub.com enterprises
+    
+    Args:
+        enterprise_slug: The enterprise slug/name
+        headers: Request headers with authentication
+    
+    Returns:
+        List of organization dictionaries or empty list if failed
+    """
+    organizations = []
+    has_next_page = True
+    end_cursor = None
+    
+    graphql_url = f"{API_URL}/graphql"
+    
+    while has_next_page:
+        query = """
+        query($slug: String!, $cursor: String) {
+          enterprise(slug: $slug) {
+            organizations(first: 100, after: $cursor) {
+              nodes {
+                login
+                id
+                name
+                url
+              }
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
+            }
+          }
+        }
+        """
+        
+        variables = {
+            "slug": enterprise_slug,
+            "cursor": end_cursor
+        }
+        
+        debug_print(f"GraphQL query for enterprise organizations (cursor: {end_cursor})")
+        
+        try:
+            response = requests.post(
+                graphql_url,
+                json={"query": query, "variables": variables},
+                headers=headers,
+                timeout=30
+            )
+            
+            if response.status_code != 200:
+                debug_print(f"GraphQL request failed: {response.status_code}")
+                if DEBUG:
+                    debug_print(f"Response: {response.text}")
+                return []
+            
+            data = response.json()
+            
+            if 'errors' in data:
+                debug_print(f"GraphQL errors: {data['errors']}")
+                return []
+            
+            if 'data' not in data or not data['data'].get('enterprise'):
+                debug_print("No enterprise data in GraphQL response")
+                return []
+            
+            orgs_data = data['data']['enterprise']['organizations']
+            orgs = orgs_data['nodes']
+            page_info = orgs_data['pageInfo']
+            
+            debug_print(f"Found {len(orgs)} organizations via GraphQL")
+            organizations.extend(orgs)
+            
+            has_next_page = page_info['hasNextPage']
+            end_cursor = page_info['endCursor']
+            
+            print(f"   📄 Fetched GraphQL page, total organizations so far: {len(organizations)}")
+            
+            time.sleep(API_DELAY)
+            
+        except Exception as e:
+            debug_print(f"GraphQL request exception: {e}")
+            return []
+    
+    if organizations:
+        print(f"✅ Successfully fetched {len(organizations)} organizations via GraphQL API")
+    
+    return organizations
+
+
 def get_enterprise_organizations(enterprise_slug: str, headers: Dict[str, str]) -> List[Dict]:
     """
     Fetch all organizations from a GitHub Enterprise
@@ -110,6 +203,14 @@ def get_enterprise_organizations(enterprise_slug: str, headers: Dict[str, str]) 
     
     print(f"🏢 Fetching organizations for enterprise: {enterprise_slug}")
     
+    # Try the GraphQL API first for GitHub.com enterprises
+    if API_URL == 'https://api.github.com':
+        debug_print("Attempting GraphQL API for GitHub.com enterprise")
+        graphql_orgs = get_enterprise_orgs_graphql(enterprise_slug, headers)
+        if graphql_orgs:
+            return graphql_orgs
+    
+    # Fall back to REST API for GitHub Enterprise Server or if GraphQL fails
     while True:
         check_rate_limit(headers)
         url = f"{API_URL}/enterprises/{enterprise_slug}/organizations"
@@ -124,7 +225,7 @@ def get_enterprise_organizations(enterprise_slug: str, headers: Dict[str, str]) 
             response = requests.get(url, headers=headers, params=params, timeout=30)
             
             if response.status_code == 404:
-                print(f"❌ Error: Enterprise '{enterprise_slug}' not found or not accessible")
+                print(f"❌ Error: Enterprise '{enterprise_slug}' not found via REST API")
                 print("   Make sure the enterprise slug is correct and your token has 'admin:enterprise' scope")
                 print(f"   API URL used: {url}")
                 print(f"   Status code: {response.status_code}")
