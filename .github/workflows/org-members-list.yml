@@ -1,0 +1,114 @@
+name: Generate Organization Members List
+
+on:
+  workflow_dispatch:
+    inputs:
+      enterprise_slug:
+        description: 'GitHub Enterprise slug/name'
+        required: true
+        type: string
+      output_format:
+        description: 'Output format for the report'
+        required: true
+        type: choice
+        options:
+          - markdown
+          - html
+          - json
+          - text
+        default: markdown
+      debug_mode:
+        description: 'Enable debug mode'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  generate-members-report:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          cd org-members-list
+          pip install -r requirements.txt
+      
+      - name: Generate members report
+        env:
+          GITHUB_TOKEN: ${{ secrets.ENTERPRISE_GITHUB_TOKEN }}
+          GITHUB_API_URL: ${{ vars.GITHUB_API_URL || 'https://api.github.com' }}
+          DEBUG: ${{ inputs.debug_mode }}
+        run: |
+          cd org-members-list
+          
+          # Create results directory if it doesn't exist
+          mkdir -p ../results
+          
+          # Generate filename with date and appropriate extension
+          REPORT_DATE=$(date +%Y%m%d_%H%M%S)
+          
+          # Determine file extension based on format
+          case "${{ inputs.output_format }}" in
+            markdown)
+              EXTENSION="md"
+              ;;
+            html)
+              EXTENSION="html"
+              ;;
+            json)
+              EXTENSION="json"
+              ;;
+            text)
+              EXTENSION="txt"
+              ;;
+            *)
+              EXTENSION="txt"
+              ;;
+          esac
+          
+          OUTPUT_FILE="../results/enterprise_members_${{ inputs.enterprise_slug }}_${REPORT_DATE}.${EXTENSION}"
+          
+          # Run the script
+          if [ "${{ inputs.debug_mode }}" = "true" ]; then
+            python org_members_list.py "${{ inputs.enterprise_slug }}" \
+              --format "${{ inputs.output_format }}" \
+              --output "$OUTPUT_FILE" \
+              --debug
+          else
+            python org_members_list.py "${{ inputs.enterprise_slug }}" \
+              --format "${{ inputs.output_format }}" \
+              --output "$OUTPUT_FILE"
+          fi
+      
+      - name: Commit and push report
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # Add the results folder
+          git add results/
+          
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Add organization members report for ${{ inputs.enterprise_slug }} - $(date +%Y-%m-%d)"
+            git push
+          fi
+      
+      - name: Upload report as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: org-members-report-${{ inputs.enterprise_slug }}-${{ github.run_number }}
+          path: results/*
+          retention-days: 90

@@ -1,0 +1,79 @@
+name: Generate Enterprise Organization Report
+
+on:
+  workflow_dispatch:
+    inputs:
+      enterprise_slug:
+        description: 'GitHub Enterprise slug/name'
+        required: true
+        type: string
+      debug_mode:
+        description: 'Enable debug mode'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  generate-report:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          cd enterprise-org-report
+          pip install -r requirements.txt
+      
+      - name: Generate report
+        env:
+          GITHUB_TOKEN: ${{ secrets.ENTERPRISE_GITHUB_TOKEN }}
+          GITHUB_API_URL: ${{ vars.GITHUB_API_URL || 'https://api.github.com' }}
+          DEBUG: ${{ inputs.debug_mode }}
+        run: |
+          cd enterprise-org-report
+          
+          # Create results directory if it doesn't exist
+          mkdir -p ../results
+          
+          # Generate filename with date
+          REPORT_DATE=$(date +%Y%m%d_%H%M%S)
+          OUTPUT_FILE="../results/enterprise_org_report_${{ inputs.enterprise_slug }}_${REPORT_DATE}.csv"
+          
+          # Run the script
+          if [ "${{ inputs.debug_mode }}" = "true" ]; then
+            python enterprise_org_report.py "${{ inputs.enterprise_slug }}" --output "$OUTPUT_FILE" --debug
+          else
+            python enterprise_org_report.py "${{ inputs.enterprise_slug }}" --output "$OUTPUT_FILE"
+          fi
+      
+      - name: Commit and push report
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # Add the results folder
+          git add results/
+          
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Add enterprise org report for ${{ inputs.enterprise_slug }} - $(date +%Y-%m-%d)"
+            git push
+          fi
+      
+      - name: Upload report as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: enterprise-org-report-${{ inputs.enterprise_slug }}-${{ github.run_number }}
+          path: results/*.csv
+          retention-days: 90
