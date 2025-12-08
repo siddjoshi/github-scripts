@@ -446,6 +446,126 @@ def get_organization_repo_count(org_login: str, headers: Dict[str, str]) -> int:
     return repo_count
 
 
+def get_organization_users(org_login: str, headers: Dict[str, str], fetch_details: bool = False) -> List[Dict]:
+    """
+    Get all users (members) in a GitHub organization
+    
+    Args:
+        org_login: Organization login name
+        headers: Request headers with authentication
+        fetch_details: If True, fetch detailed information for each user (slower but more complete)
+    
+    Returns:
+        List of user dictionaries with login, id, and optionally name, email, company, etc.
+    """
+    users = []
+    page = 1
+    
+    print(f"👥 Fetching users for organization: {org_login}")
+    
+    while True:
+        time.sleep(API_DELAY)
+        check_rate_limit(headers)
+        
+        url = f"{API_URL}/orgs/{org_login}/members"
+        params = {
+            'per_page': 100,
+            'page': page
+        }
+        
+        try:
+            debug_print(f"Fetching members page {page} for {org_login}")
+            response = requests.get(url, headers=headers, params=params, timeout=30)
+            
+            if response.status_code != 200:
+                print(f"⚠️  Error fetching members for {org_login}: {response.status_code}")
+                debug_print(f"Error response: {response.text}")
+                break
+            
+            page_users = response.json()
+            
+            if not page_users:
+                break
+            
+            # If fetch_details is True, get additional information for each user
+            if fetch_details:
+                for user in page_users:
+                    user_details = get_user_details(user['login'], headers)
+                    if user_details:
+                        users.append(user_details)
+                    else:
+                        # Fall back to basic info if detailed fetch fails
+                        users.append(user)
+            else:
+                users.extend(page_users)
+            
+            debug_print(f"Page {page}: {len(page_users)} users (total so far: {len(users)})")
+            
+            # If we got fewer results than per_page, we've reached the end
+            if len(page_users) < 100:
+                break
+            
+            page += 1
+            
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Error fetching users: {e}")
+            debug_print(f"Request error: {e}")
+            break
+    
+    print(f"✅ Found {len(users)} users in {org_login}")
+    return users
+
+
+def get_user_details(username: str, headers: Dict[str, str]) -> Optional[Dict]:
+    """
+    Get detailed information for a specific user
+    
+    Args:
+        username: GitHub username
+        headers: Request headers with authentication
+    
+    Returns:
+        Dictionary with user details or None if fetch fails
+    """
+    time.sleep(API_DELAY)
+    check_rate_limit(headers)
+    
+    url = f"{API_URL}/users/{username}"
+    
+    try:
+        debug_print(f"Fetching details for user: {username}")
+        response = requests.get(url, headers=headers, timeout=30)
+        
+        if response.status_code == 200:
+            user_data = response.json()
+            # Return relevant user information
+            return {
+                'login': user_data.get('login'),
+                'id': user_data.get('id'),
+                'name': user_data.get('name'),
+                'email': user_data.get('email'),
+                'company': user_data.get('company'),
+                'location': user_data.get('location'),
+                'bio': user_data.get('bio'),
+                'public_repos': user_data.get('public_repos'),
+                'followers': user_data.get('followers'),
+                'following': user_data.get('following'),
+                'created_at': user_data.get('created_at'),
+                'updated_at': user_data.get('updated_at'),
+                'profile_url': user_data.get('html_url'),
+                'avatar_url': user_data.get('avatar_url'),
+                'type': user_data.get('type'),
+                'site_admin': user_data.get('site_admin')
+            }
+        else:
+            debug_print(f"Error fetching user details: {response.status_code}")
+            return None
+            
+    except requests.exceptions.RequestException as e:
+        debug_print(f"Error fetching user details: {e}")
+        return None
+
+
 def generate_enterprise_report(enterprise_slug: str, output_file: Optional[str] = None) -> List[Dict]:
     """
     Generate a report of all organizations in an enterprise
